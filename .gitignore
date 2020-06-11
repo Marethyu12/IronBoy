@@ -1,0 +1,7 @@
+/ROMS/*
+emulator.log
+*.o
+IronBoy.exe
+libcomdlg32.a
+SDL2.dll
+TODO.txt
