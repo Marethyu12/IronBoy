@@ -62,9 +62,9 @@ bool Emulator::LoadRom(const std::string& romName)
 	memcpy(&m_Rom[0x0], &m_GameBank[0], 0x8000) ; // this is read only and never changes
 
 	m_CurrentRomBank = 1;
-    m_BootMode = false;//
+    m_BootMode = true;
     m_DoLogging = false ;
-    ResetCPU();
+    //ResetCPU();
 
 	return true ;
 }
@@ -330,7 +330,7 @@ std::string Emulator::GetImmediateData2( ) const
 // all reading of rom should go through here so I can trap it.
 BYTE Emulator::ReadMemory(WORD memory)const
 {
-    if (m_BootMode && memory <= 0xFF && (memory < 104 || memory > 133))
+    if (m_BootMode && memory <= 0xFF)
     {
         return bootROM[memory];
     }
