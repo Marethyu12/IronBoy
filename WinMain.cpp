@@ -5,9 +5,10 @@
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
+    ShowWindow(GetConsoleWindow(), SW_HIDE);
+    
 	LogMessage* log = LogMessage::CreateInstance() ;
 	GameSettings* settings = GameSettings::CreateInstance();
-
 	GameBoy* gb = GameBoy::CreateInstance( ) ;
 
 	gb->StartEmulation( ) ;
