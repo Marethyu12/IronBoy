@@ -229,19 +229,7 @@ void Emulator::DoInput( )
 
 void Emulator::DoGraphics( int cycles )
 {
-	SetLCDStatus( ) ;
-
-	// count down the LY register which is the current line being drawn. When reaches 144 (0x90) its vertical blank time
-	if (TestBit(ReadMemory(0xFF40), 7))
-		m_RetraceLY -= cycles ;
-
-	if (m_Rom[0xFF44] > VERTICAL_BLANK_SCAN_LINE_MAX)
-		m_Rom[0xFF44] = 0 ;
-	//else if (m_Rom[0xFF44] == 0)
-	//	ResetScreen( ) ;
-
-	if (m_RetraceLY <= 0)
-		DrawCurrentLine( ) ;
+	
 }
 
 //////////////////////////////////////////////////////////////////
@@ -665,25 +653,7 @@ static int count2 = 0 ;
 
 void Emulator::DrawCurrentLine( )
 {
-	if (TestBit(ReadMemory(0xFF40), 7)== false)
-		return ;
-
-	m_Rom[0xFF44]++ ;
-	m_RetraceLY = RETRACE_START ;
-
-	BYTE scanLine = ReadMemory(0xFF44) ;
-
-	if ( scanLine == VERTICAL_BLANK_SCAN_LINE)
-		IssueVerticalBlank( ) ;
-
-	if (scanLine > VERTICAL_BLANK_SCAN_LINE_MAX)
-		m_Rom[0xFF44] = 0 ;
-
-	if (scanLine < VERTICAL_BLANK_SCAN_LINE)
-	{
-		DrawScanLine( ) ;
-	}
-
+	
 }
 
 //////////////////////////////////////////////////////////////////
@@ -771,16 +741,7 @@ void Emulator::ServiceInterrupt( int num )
 
 void Emulator::DrawScanLine( )
 {
-	BYTE lcdControl = ReadMemory(0xFF40) ;
-
-	// we can only draw of the LCD is enabled
-	if (TestBit(lcdControl, 7))
-	{
-		RenderBackground( lcdControl ) ;
-		RenderSprites( lcdControl ) ;
-		//m_RenderFunc() ;
-	}
-
+	
 }
 
 //////////////////////////////////////////////////////////////////
@@ -788,134 +749,6 @@ void Emulator::DrawScanLine( )
 void Emulator::RenderBackground(BYTE lcdControl)
 {
 	// lets draw the background (however it does need to be enabled)
-	if (TestBit(lcdControl, 0))
-	{
-		WORD tileData = 0 ;
-		WORD backgroundMemory =0 ;
-		bool unsig = true ;
-
-		BYTE scrollY = ReadMemory(0xFF42) ;
-		BYTE scrollX = ReadMemory(0xFF43) ;
-		BYTE windowY = ReadMemory(0xFF4A) ;
-		BYTE windowX = ReadMemory(0xFF4B) - 7;
-
-		bool usingWindow = false ;
-
-		if (TestBit(lcdControl,5))
-		{
-			if (windowY <= ReadMemory(0xFF44))
-				usingWindow = true ;
-		}
-		else
-		{
-			usingWindow = false ;
-		}
-
-		// which tile data are we using?
-		if (TestBit(lcdControl,4))
-		{
-			tileData = 0x8000 ;
-		}
-		else
-		{
-			tileData = 0x8800 ;
-			unsig= false ;
-		}
-
-		// which background mem?
-		if (false == usingWindow)
-		{
-			if (TestBit(lcdControl,3))
-				backgroundMemory = 0x9C00 ;
-			else
-				backgroundMemory = 0x9800 ;
-		}
-		else
-		{
-			if (TestBit(lcdControl,6))
-				backgroundMemory = 0x9C00 ;
-			else
-				backgroundMemory = 0x9800 ;
-		}
-
-
-		BYTE yPos = 0 ;
-
-		if (!usingWindow)
-			yPos = scrollY + ReadMemory(0xFF44) ;
-		else
-			yPos = ReadMemory(0xFF44) - windowY;
-
-		WORD tileRow = (((BYTE)(yPos/8))*32) ;
-
-		for (int pixel = 0 ; pixel < 160; pixel++)
-		{
-			BYTE xPos = pixel+scrollX ;
-
-			if (usingWindow)
-			{
-				if (pixel >= windowX)
-				{
-					xPos = pixel - windowX ;
-				}
-			}
-
-			WORD tileCol = (xPos/8) ;
-			SIGNED_WORD tileNum ;
-
-			if(unsig)
-				tileNum = (BYTE)ReadMemory(backgroundMemory+tileRow + tileCol) ;
-			else
-				tileNum = (SIGNED_BYTE)ReadMemory(backgroundMemory+tileRow + tileCol) ;
-
-			WORD tileLocation = tileData ;
-
-			if (unsig)
-				tileLocation += (tileNum * 16) ;
-			else
-				tileLocation += ((tileNum+128) *16) ;
-
-			BYTE line = yPos % 8 ;
-			line *= 2;
-			BYTE data1 = ReadMemory(tileLocation + line) ;
-			BYTE data2 = ReadMemory(tileLocation + line + 1) ;
-
-			int colourBit = xPos % 8 ;
-			colourBit -= 7 ;
-			colourBit *= -1 ;
-
-			int colourNum = BitGetVal(data2,colourBit) ;
-			colourNum <<= 1;
-			colourNum |= BitGetVal(data1,colourBit) ;
-
-			COLOUR col = GetColour(colourNum, 0xFF47) ;
-			int red = 0;
-			int green = 0;
-			int blue = 0;
-
-			switch(col)
-			{
-			case WHITE:	red = 255; green = 255 ; blue = 255; break ;
-			case LIGHT_GRAY:red = 0xCC; green = 0xCC ; blue = 0xCC; break ;
-			case DARK_GRAY:	red = 0x77; green = 0x77 ; blue = 0x77; break ;
-			}
-
-			int finaly = ReadMemory(0xFF44) ;
-
-			if ((finaly < 0) || (finaly > 143) || (pixel < 0) || (pixel > 159))
-			{
-				assert(false);
-				continue ;
-			}
-
-            int offset = finaly * 160 * 4 + pixel * 4;
-
-            m_ScreenData[offset] = blue;
-            m_ScreenData[offset + 1] = green;
-            m_ScreenData[offset + 2] = red;
-            m_ScreenData[offset + 3] = 255;
-		}
-	}
 }
 
 //////////////////////////////////////////////////////////////////
@@ -923,105 +756,6 @@ void Emulator::RenderBackground(BYTE lcdControl)
 void Emulator::RenderSprites(BYTE lcdControl)
 {
 	// lets draw the sprites (however it does need to be enabled)
-
-	if (TestBit(lcdControl, 1))
-	{
-		bool use8x16 = false ;
-		if (TestBit(lcdControl,2))
-			use8x16 = true ;
-
-		for (int sprite = 0 ; sprite < 40; sprite++)
-		{
- 			BYTE index = sprite*4 ;
- 			BYTE yPos = ReadMemory(0xFE00+index) - 16;
- 			BYTE xPos = ReadMemory(0xFE00+index+1)-8;
- 			BYTE tileLocation = ReadMemory(0xFE00+index+2) ;
- 			BYTE attributes = ReadMemory(0xFE00+index+3) ;
-
-			bool yFlip = TestBit(attributes,6) ;
-			bool xFlip = TestBit(attributes,5) ;
-
-			int scanline = ReadMemory(0xFF44);
-
-			int ysize = 8;
-
-			if (use8x16)
-				ysize = 16;
-
- 			if ((scanline >= yPos) && (scanline < (yPos+ysize)))
- 			{
- 				int line = scanline - yPos ;
-
- 				if (yFlip)
- 				{
- 					line -= ysize ;
- 					line *= -1 ;
- 				}
-
- 				line *= 2;
- 				BYTE data1 = ReadMemory( (0x8000 + (tileLocation * 16)) + line ) ;
- 				BYTE data2 = ReadMemory( (0x8000 + (tileLocation * 16)) + line+1 ) ;
-
-
-
- 				for (int tilePixel = 7; tilePixel >= 0; tilePixel--)
- 				{
-					int colourbit = tilePixel ;
- 					if (xFlip)
- 					{
- 						colourbit -= 7 ;
- 						colourbit *= -1 ;
- 					}
- 					int colourNum = BitGetVal(data2,colourbit) ;
- 					colourNum <<= 1;
- 					colourNum |= BitGetVal(data1,colourbit) ;
-
-					COLOUR col = GetColour(colourNum, TestBit(attributes,4)?0xFF49:0xFF48) ;
-
- 					// white is transparent for sprites.
- 					if (col == WHITE)
- 						continue ;
-
- 					int red = 0;
- 					int green = 0;
- 					int blue = 0;
-
-					switch(col)
-					{
-					case WHITE:	red = 255; green = 255 ; blue = 255; break ;
-					case LIGHT_GRAY:red = 0xCC; green = 0xCC ; blue = 0xCC; break ;
-					case DARK_GRAY:	red = 0x77; green = 0x77 ; blue = 0x77; break ;
-					}
-
- 					int xPix = 0 - tilePixel ;
- 					xPix += 7 ;
-
-					int pixel = xPos+xPix ;
-
-					if ((scanline < 0) || (scanline > 143) || (pixel < 0) || (pixel > 159))
-					{
-					//	assert(false) ;
-						continue ;
-					}
-
-                    int offset = scanline * 160 * 4 + pixel * 4;
-
-					// check if pixel is hidden behind background
-					if (TestBit(attributes, 7) == 1)
-					{
-						if ( (m_ScreenData[offset + 2] != 255) || (m_ScreenData[offset + 1] != 255) || (m_ScreenData[offset] != 255) )
-							continue ;
-					}
-
- 					m_ScreenData[offset + 2] = red ;
- 					m_ScreenData[offset + 1] = green ;
- 					m_ScreenData[offset] = blue ;
-                    m_ScreenData[offset + 3] = 255;
-
- 				}
- 			}
-		}
-	}
 }
 
 //////////////////////////////////////////////////////////////////
@@ -1061,89 +795,7 @@ Emulator::COLOUR Emulator::GetColour(BYTE colourNum, WORD address) const
 //////////////////////////////////////////////////////////////////
 void Emulator::SetLCDStatus( )
 {
-	BYTE lcdStatus = m_Rom[0xFF41] ;
-
-	if (TestBit(ReadMemory(0xFF40), 7)== false)
-	{
-		m_RetraceLY = RETRACE_START ;
-		m_Rom[0xFF44] = 0 ;
-
-		// mode gets set to 1 when disabled screen.
-		lcdStatus &= 252 ;
-		lcdStatus = BitSet(lcdStatus,0) ;
-		WriteByte(0xFF41,lcdStatus) ;
-		return ;
-	}
-
-
-	BYTE lY = ReadMemory(0xFF44) ;
-
-	BYTE currentMode = GetLCDMode( ) ;
-
-	int mode = 0 ;
-	bool reqInt = false ;
-
-	// set mode as vertical blank
-	if (lY >= VERTICAL_BLANK_SCAN_LINE)
-	{
-		// mode 1
-		mode = 1 ;
-		lcdStatus = BitSet(lcdStatus,0) ;
-		lcdStatus = BitReset(lcdStatus,1) ;
-		reqInt = TestBit(lcdStatus, 4) ;
-	}
-	else
-	{
-		int mode2Bounds = (RETRACE_START - 80) ;
-		int mode3Bounds = (mode2Bounds - 172) ;
-
-
-		// mode 2
-		if (m_RetraceLY >= mode2Bounds)
-		{
-			mode = 2 ;
-			lcdStatus = BitSet(lcdStatus,1) ;
-			lcdStatus = BitReset(lcdStatus,0) ;
-			reqInt = TestBit(lcdStatus,5) ;
-		}
-		// mode 3
-		else if (m_RetraceLY >= mode3Bounds)
-		{
-			mode = 3 ;
-			lcdStatus = BitSet(lcdStatus,1) ;
-			lcdStatus = BitSet(lcdStatus,0) ;
-		}
-		// mode 3
-		else
-		{
-			mode = 0 ;
-			lcdStatus = BitReset(lcdStatus,1) ;
-			lcdStatus = BitReset(lcdStatus,0) ;
-			reqInt = TestBit(lcdStatus,3) ;
-		}
-
-	}
-
-	// just entered a new mode. Request interupt
-	if (reqInt && (currentMode != mode))
-		RequestInterupt(1) ;
-
-	// check for coincidence flag
-	if ( lY == ReadMemory(0xFF45))
-	{
-		lcdStatus = BitSet(lcdStatus,2) ;
-
-		if (TestBit(lcdStatus,6))
-		{
-			RequestInterupt(1) ;
-		}
-	}
-	else
-	{
-		lcdStatus = BitReset(lcdStatus,2) ;
-	}
-
-	WriteByte(0xFF41, lcdStatus) ;
+	
 }
 
 //////////////////////////////////////////////////////////////////
