@@ -3,19 +3,18 @@
 #include "GameSettings.h"
 
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
-{
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     ShowWindow(GetConsoleWindow(), SW_HIDE);
-    
-	LogMessage* log = LogMessage::CreateInstance() ;
-	GameSettings* settings = GameSettings::CreateInstance();
-	GameBoy* gb = GameBoy::CreateInstance( ) ;
 
-	gb->StartEmulation( ) ;
+    LogMessage* log = LogMessage::CreateInstance() ;
+    GameSettings* settings = GameSettings::CreateInstance();
+    GameBoy* gb = GameBoy::CreateInstance( ) ;
 
-	delete gb ;
-	delete settings ;
-	delete log ;
+    gb->StartEmulation( ) ;
 
-	return 0;
+    delete gb ;
+    delete settings ;
+    delete log ;
+
+    return 0;
 }

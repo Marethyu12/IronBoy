@@ -15,5 +15,9 @@ $(EXECUTABLE): $(OBJS)
 .cpp.o:
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+style:
+	astyle --style=google *.cpp,*.h
+	$(RM) *.orig
+
 clean:
 	$(RM) *.o $(EXECUTABLE)
