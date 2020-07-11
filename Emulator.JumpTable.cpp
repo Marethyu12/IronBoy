@@ -783,11 +783,12 @@ void Emulator::ExecuteOpcode(BYTE opcode) {
         break ;
 
     case 0xD9: {
-        //LOGMESSAGE(Logging::MSG_INFO, "Returning from iterupt") ;
         m_ProgramCounter = PopWordOffStack( ) ;
         m_EnableInterupts = true ;
         m_CyclesThisUpdate+=8 ;
-        LogMessage::GetSingleton()->DoLogMessage("Returning from interupt", false) ;
+        if (false) {
+            LogMessage::GetSingleton()->DoLogMessage("Returning from interupt", false);
+        }
     }
     break ;
 

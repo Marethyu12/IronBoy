@@ -9,7 +9,8 @@ class LogMessage {
     static	LogMessage*				CreateInstance						( ) ;
     static	LogMessage*				GetSingleton						( ) ;
 
-    void					DoLogMessage						( const char* message, bool logToConsole ) ;
+    void                            DoLogMessage                        ( const char* message, bool logToConsole ) ;
+    void                            LogCharacter                        ( const char c );
 
     ~LogMessage							(void);
   private:

@@ -56,8 +56,14 @@ void LogMessage::DoLogMessage(const char* message, bool logToConsole) {
     printf(message) ;
     printf("\n") ;
 #endif
+}
 
+////////////////////////////////////////////////////////////////////////////////////////
 
+void LogMessage::LogCharacter(const char c) {
+    if (NULL != m_LogFile) {
+        fputc(c, (FILE*) m_LogFile);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////

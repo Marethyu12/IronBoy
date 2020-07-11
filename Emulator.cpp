@@ -59,9 +59,14 @@ bool Emulator::LoadRom(const std::string& romName) {
     memcpy(&m_Rom[0x0], &m_GameBank[0], 0x8000) ; // this is read only and never changes
 
     m_CurrentRomBank = 1;
-    m_BootMode = true;
-    m_DoLogging = false ;
-    //ResetCPU();
+    m_DoLogging = false;
+
+    /* if you want boot ROM on startup */
+    //m_BootMode = true;
+
+    /* no boot ROM on startup */
+    m_BootMode = false;
+    ResetCPU();
 
     return true ;
 }
@@ -280,6 +285,13 @@ BYTE Emulator::ExecuteNextOpcode( ) {
         }
     }
 
+    // blarggs test - serial output
+    if (m_Rom[0xFF02] == 0x81) {
+        char c = m_Rom[0xFF01];
+        LogMessage::GetSingleton()->LogCharacter(c);
+        m_Rom[0xFF02] = 0x0;
+    }
+
     return opcode ;
 
 }
@@ -396,9 +408,11 @@ void Emulator::WriteByte(WORD address, BYTE data) {
             // Combine the written data with the register.
             m_CurrentRomBank |= data;
 
-            char buffer[256] ;
-            sprintf(buffer, "Chaning Rom Bank to %d", m_CurrentRomBank) ;
-            LogMessage::GetSingleton()->DoLogMessage(buffer, false) ;
+            if (false) {
+                char buffer[256] ;
+                sprintf(buffer, "Chaning Rom Bank to %d", m_CurrentRomBank) ;
+                LogMessage::GetSingleton()->DoLogMessage(buffer, false) ;
+            }
 
         } else if (m_UsingMBC2) {
             data &= 0xF ;
@@ -427,16 +441,20 @@ void Emulator::WriteByte(WORD address, BYTE data) {
                 // Combine the written data with the register.
                 m_CurrentRomBank |= data;
 
-                char buffer[256] ;
-                sprintf(buffer, "Chaning Rom Bank to %d", m_CurrentRomBank) ;
-                LogMessage::GetSingleton()->DoLogMessage(buffer, false) ;
+                if (false) {
+                    char buffer[256] ;
+                    sprintf(buffer, "Chaning Rom Bank to %d", m_CurrentRomBank) ;
+                    LogMessage::GetSingleton()->DoLogMessage(buffer, false) ;
+                }
 
             } else {
                 m_CurrentRamBank = data & 0x3 ;
-                char buffer[256] ;
-                sprintf(buffer, "=====Chaning Ram Bank to %d=====", m_CurrentRamBank) ;
-                LogMessage::GetSingleton()->DoLogMessage(buffer, false) ;
 
+                if (false) {
+                    char buffer[256] ;
+                    sprintf(buffer, "=====Chaning Ram Bank to %d=====", m_CurrentRamBank) ;
+                    LogMessage::GetSingleton()->DoLogMessage(buffer, false) ;
+                }
             }
         }
     }
@@ -598,7 +616,6 @@ void Emulator::IssueVerticalBlank( ) {
         //OutputDebugStr(STR::Format("Total VBlanks was: %d\n", vblankcount)) ;
         vblankcount = 0 ;
     }
-
 }
 
 //////////////////////////////////////////////////////////////////
@@ -679,9 +696,11 @@ void Emulator::ServiceInterrupt( int num ) {
     PushWordOntoStack(m_ProgramCounter) ;
     m_Halted = false ;
 
-    char buffer[200] ;
-    sprintf(buffer, "servicing interupt %d", num) ;
-    LogMessage::GetSingleton()->DoLogMessage(buffer, false) ;
+    if (false) {
+        char buffer[200] ;
+        sprintf(buffer, "servicing interupt %d", num) ;
+        LogMessage::GetSingleton()->DoLogMessage(buffer, false) ;
+    }
 
 //	unsigned long long limit =(8000000);
 //	if (m_TotalOpcodes > limit)
