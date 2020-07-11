@@ -210,15 +210,12 @@ void Emulator::Update( ) {
         }
 
         int currentCycle = m_CyclesThisUpdate ;
-        BYTE opcode = ExecuteNextOpcode( ) ;
+        BYTE opcode = ExecuteNextOpcode();
         int cycles = m_CyclesThisUpdate - currentCycle ;
 
-        DoTimers( cycles ) ;
-        DoGraphics( cycles ) ;
-        DoInput( ) ;
-        DoInterupts( ) ;
-
-
+        DoTimers(cycles);
+        DoGraphics(cycles);
+        DoInterupts();
     }
 
     counter9 += m_CyclesThisUpdate ;
@@ -227,14 +224,21 @@ void Emulator::Update( ) {
 
 //////////////////////////////////////////////////////////////////
 
-void Emulator::DoInput( ) {
+void Emulator::DoGraphics(int cycles) {
+    SetLCDStatus();
 
-}
+    // is LCD enabled?
+    if (TestBit(ReadMemory(0xFF40), 7)) {
+        m_RetraceLY -= cycles; // keep track of cycles accumulated
+    }
 
-//////////////////////////////////////////////////////////////////
+    if (m_Rom[0xFF44] > VERTICAL_BLANK_SCAN_LINE_MAX) {
+        m_Rom[0xFF44] = 0; // reset
+    }
 
-void Emulator::DoGraphics( int cycles ) {
-
+    if (m_RetraceLY <= 0) {
+        DrawCurrentLine();
+    }
 }
 
 //////////////////////////////////////////////////////////////////
@@ -599,11 +603,29 @@ void Emulator::IssueVerticalBlank( ) {
 
 //////////////////////////////////////////////////////////////////
 
-static int counter = 0 ;
-static int count2 = 0 ;
+void Emulator::DrawCurrentLine() {
+    // LCD must be enabled
+    if (!TestBit(ReadMemory(0xFF40), 7)) {
+        return;
+    }
 
-void Emulator::DrawCurrentLine( ) {
+    m_Rom[0xFF44]++; // increment LY
+    m_RetraceLY = RETRACE_START; // draw another line if this counter reaches 0
 
+    BYTE Ly = ReadMemory(0xFF44);
+
+    // V-Blank occurs if LY is between 144 and 153
+    if (Ly == VERTICAL_BLANK_SCAN_LINE) {
+        IssueVerticalBlank();
+    }
+
+    if (Ly > VERTICAL_BLANK_SCAN_LINE_MAX) {
+        m_Rom[0xFF44] = 0;
+    }
+
+    if (Ly < VERTICAL_BLANK_SCAN_LINE) {
+        DrawScanLine();
+    }
 }
 
 //////////////////////////////////////////////////////////////////
@@ -689,80 +711,333 @@ void Emulator::ServiceInterrupt( int num ) {
 
 //////////////////////////////////////////////////////////////////
 
-void Emulator::DrawScanLine( ) {
+void Emulator::DrawScanLine() {
+    BYTE LCDControl = ReadMemory(0xFF40);
 
+    // LCD must be enabled
+    if (TestBit(LCDControl, 7)) {
+        RenderBackground(LCDControl);
+        RenderSprites(LCDControl);
+    }
 }
 
 //////////////////////////////////////////////////////////////////
 
-void Emulator::RenderBackground(BYTE lcdControl) {
+void Emulator::RenderBackground(BYTE LCDControl) {
     // lets draw the background (however it does need to be enabled)
+    if (!TestBit(LCDControl, 0)) {
+        return;
+    }
+
+    BYTE ScY = ReadMemory(0xFF42);
+    BYTE ScX = ReadMemory(0xFF43);
+    BYTE WndY = ReadMemory(0xFF4A);
+    BYTE WndX = ReadMemory(0xFF4B) - 7;
+    BYTE Ly = ReadMemory(0xFF44);
+
+    WORD wndTileMem = TestBit(LCDControl, 4) ? 0x8000 : 0x8800;
+
+    bool _signed = wndTileMem == 0x8800;
+    bool usingWnd = TestBit(LCDControl, 5) && WndY <= Ly; // true if window display is enabled (specified in LCDC) and WndY <= LY
+
+    WORD bkgdTileMem = TestBit(LCDControl, usingWnd ? 6 : 3) ? 0x9C00 : 0x9800;
+
+    // the y-position is used to determine which of 32 (256 / 8) vertical tiles will used (background map y)
+    BYTE yPos = !usingWnd ? ScY + Ly : Ly - WndY; // map to window coordinates if necessary
+    WORD tileRow = ((BYTE) (yPos / 8)) * 32; // which of 8 vertical pixels of the current tile is the scanline on?
+
+    // time to draw a scanline which consists of 160 pixels
+    for (int pixel = 0; pixel < 160; pixel++) {
+        BYTE xPos = usingWnd && pixel >= WndX ? pixel - WndX : ScX + pixel;
+        WORD tileCol = xPos / 8; // which of horizontal pixels of the current tile does xPos fall in?
+        WORD tileAddr = bkgdTileMem + tileRow + tileCol;
+        SIGNED_WORD tileNum = _signed ? (SIGNED_BYTE) ReadMemory(tileAddr) : (BYTE) ReadMemory(tileAddr);
+        WORD tileLocation = wndTileMem + (_signed ? (tileNum + 128) * 16 : tileNum * 16);
+
+        // determine the correct row of pixels
+        BYTE line = yPos % 8;
+        line *= 2; // each line needs 2 bytes of memory so...
+
+        BYTE data1 = ReadMemory(tileLocation + line);
+        BYTE data2 = ReadMemory(tileLocation + line + 1);
+
+        int bit = 7 - (xPos % 8); // bit position in data1 and data2 (because pixel 0 corresponds to bit 7 and pixel 1 corresponds to bit 6 and so on)
+        int colourNum = (BitGetVal(data2, bit) << 1) | BitGetVal(data1, bit);
+
+        COLOUR col = GetColour(colourNum, 0xFF47);
+        int red;
+        int green;
+        int blue;
+
+        switch (col) {
+        case LIGHTEST_GREEN:
+            red = 155;
+            green = 188;
+            blue = 15;
+            break;
+        case LIGHT_GREEN:
+            red = 139;
+            green = 172;
+            blue = 15;
+            break;
+        case DARK_GREEN:
+            red = 48;
+            green = 98;
+            blue = 48;
+            break;
+        case DARKEST_GREEN:
+            red = 15;
+            green = 56;
+            blue = 15;
+            break;
+        }
+
+        if ((Ly < 0) || (Ly > 143) || (pixel < 0) || (pixel > 159)) {
+            assert(false);
+            continue;
+        }
+
+        int offset = Ly * 160 * 4 + pixel * 4;
+
+        m_ScreenData[offset] = blue;
+        m_ScreenData[offset + 1] = green;
+        m_ScreenData[offset + 2] = red;
+        m_ScreenData[offset + 3] = 255;
+    }
 }
 
 //////////////////////////////////////////////////////////////////
 
-void Emulator::RenderSprites(BYTE lcdControl) {
+void Emulator::RenderSprites(BYTE LCDControl) {
     // lets draw the sprites (however it does need to be enabled)
+    if (!TestBit(LCDControl, 1)) {
+        return;
+    }
+
+    bool use8x16 = TestBit(LCDControl, 2); // determine the sprite size
+
+    // the sprite layer can display up to 40 sprites
+    for (int i = 0; i < 40; i++) {
+        int index = i * 4; // each sprite takes 4 bytes of OAM space (0xFE00-0xFE9F)
+
+        BYTE spriteY = ReadMemory(0xFE00 + index) - 16;
+        BYTE spriteX = ReadMemory(0xFE00 + index + 1) - 8;
+        BYTE patternNumber = ReadMemory(0xFE00 + index + 2);
+        BYTE attributes = ReadMemory(0xFE00 + index + 3);
+
+        bool xFlip = TestBit(attributes, 5);
+        bool yFlip = TestBit(attributes, 6);
+
+        int Ly = ReadMemory(0xFF44);
+        int height = use8x16 ? 16 : 8;
+
+        // does the scanline intercept this sprite?
+        if ((Ly >= spriteY) && (Ly < (spriteY + height))) {
+            int line = Ly - spriteY;
+            if (yFlip) {
+                line = height - line; // read backwards if y flipping is allowed
+            }
+            line *= 2; // each line takes 2 bytes of memory
+
+            WORD tileLocation = 0x8000 + (patternNumber * 16);
+
+            BYTE data1 = ReadMemory(tileLocation + line);
+            BYTE data2 = ReadMemory(tileLocation + line + 1);
+
+            for (int tilePixel = 7; tilePixel >= 0; tilePixel--) {
+                int bit = tilePixel;
+                if (xFlip) {
+                    bit = 7 - bit; // read backwards if x flipping is allowed
+                }
+
+                int colourNum = (BitGetVal(data2, bit) << 1) | BitGetVal(data1, bit);
+                COLOUR col = GetColour(colourNum, TestBit(attributes, 4) ? 0xFF49 : 0xFF48);
+
+                // it's transparent for sprites
+                if (col == LIGHTEST_GREEN) {
+                    continue;
+                }
+
+                int red;
+                int green;
+                int blue;
+
+                switch (col) {
+                case LIGHT_GREEN:
+                    red = 139;
+                    green = 172;
+                    blue = 15;
+                    break;
+                case DARK_GREEN:
+                    red = 48;
+                    green = 98;
+                    blue = 48;
+                    break;
+                case DARKEST_GREEN:
+                    red = 15;
+                    green = 56;
+                    blue = 15;
+                    break;
+                }
+
+                int pixel = spriteX + (7 - tilePixel);
+
+                if ((Ly < 0) || (Ly > 143) || (pixel < 0) || (pixel > 159)) {
+                    continue;
+                }
+
+                int offset = Ly * 160 * 4 + pixel * 4;
+
+                // check if pixel is hidden behind background
+                // if the bit 7 of attributes is set then the screen pixel colour must be lightest green before changing colour
+                if (TestBit(attributes, 7) && ((m_ScreenData[offset + 2] != 155) || (m_ScreenData[offset + 1] != 188) || (m_ScreenData[offset] != 15))) {
+                    continue;
+                }
+
+                m_ScreenData[offset] = blue;
+                m_ScreenData[offset + 1] = green;
+                m_ScreenData[offset + 2] = red;
+                m_ScreenData[offset + 3] = 255;
+            }
+        }
+    }
 }
 
 //////////////////////////////////////////////////////////////////
 
 Emulator::COLOUR Emulator::GetColour(BYTE colourNum, WORD address) const {
-    COLOUR res = WHITE ;
-    BYTE palette = ReadMemory(address) ;
-    int hi = 0 ;;
-    int lo = 0 ;
+    COLOUR res = LIGHTEST_GREEN;
+    BYTE palette = ReadMemory(address);
+    int hi = 0;
+    int lo = 0;
 
     switch (colourNum) {
     case 0:
-        hi = 1 ;
-        lo = 0 ;
-        break ;
+        hi = 1;
+        lo = 0;
+        break;
     case 1:
-        hi = 3 ;
-        lo = 2 ;
-        break ;
+        hi = 3;
+        lo = 2;
+        break;
     case 2:
-        hi = 5 ;
-        lo = 4 ;
-        break ;
+        hi = 5;
+        lo = 4;
+        break;
     case 3:
-        hi = 7 ;
-        lo = 6 ;
-        break ;
+        hi = 7;
+        lo = 6;
+        break;
     default:
-        assert(false) ;
-        break ;
+        assert(false);
+        break;
     }
 
     int colour = 0;
     colour = BitGetVal(palette, hi) << 1;
-    colour |= BitGetVal(palette, lo) ;
+    colour |= BitGetVal(palette, lo);
 
     switch (colour) {
     case 0:
-        res = WHITE ;
-        break ;
+        res = LIGHTEST_GREEN;
+        break;
     case 1:
-        res = LIGHT_GRAY ;
-        break ;
+        res = LIGHT_GREEN;
+        break;
     case 2:
-        res = DARK_GRAY ;
-        break ;
+        res = DARK_GREEN;
+        break;
     case 3:
-        res = BLACK ;
-        break ;
+        res = DARKEST_GREEN;
+        break;
     default:
         assert(false) ;
-        break ;
+        break;
     }
 
-    return res ;
+    return res;
 }
 
 //////////////////////////////////////////////////////////////////
-void Emulator::SetLCDStatus( ) {
 
+void Emulator::SetLCDStatus() {
+    BYTE LCDStatus = ReadMemory(0xFF41);
+
+    // if LCD is turned off
+    if (!TestBit(ReadMemory(0xFF40), 7)) {
+        m_RetraceLY = RETRACE_START;
+        m_Rom[0xFF44] = 0;
+
+        // LCD status must be in mode 1 when LCD is disabled
+        LCDStatus = BitSet(LCDStatus, 0);
+        LCDStatus = BitReset(LCDStatus, 1);
+
+        WriteByte(0xFF41, LCDStatus);
+        return;
+    }
+
+    BYTE Ly = ReadMemory(0xFF44);
+    BYTE oldMode = GetLCDMode();
+
+    BYTE mode = 0;
+    bool reqInt = false;
+
+    // if in the V-Blank period
+    if (Ly >= VERTICAL_BLANK_SCAN_LINE) {
+        mode = 1;
+
+        // set to mode 1
+        LCDStatus = BitSet(LCDStatus, 0);
+        LCDStatus = BitReset(LCDStatus, 1);
+
+        reqInt = TestBit(LCDStatus, 4); // is mode 1 V-Blank interrupt enabled?
+    } else {
+        int mode2Bounds = RETRACE_START - 80;
+        int mode3Bounds = mode2Bounds - 172;
+
+        if (m_RetraceLY >= mode2Bounds) {
+            mode = 2;
+
+            // set to mode 2
+            LCDStatus = BitReset(LCDStatus, 0);
+            LCDStatus = BitSet(LCDStatus, 1);
+
+            reqInt = TestBit(LCDStatus, 5); // is mode 2 OAM interrupt enabled?
+        } else if (m_RetraceLY >= mode3Bounds) {
+            mode = 3;
+
+            // set to mode 3
+            LCDStatus = BitSet(LCDStatus, 0);
+            LCDStatus = BitSet(LCDStatus, 1);
+        } else {
+            mode = 0;
+
+            // set to mode 0
+            LCDStatus = BitReset(LCDStatus, 0);
+            LCDStatus = BitReset(LCDStatus, 1);
+
+            reqInt = TestBit(LCDStatus, 3); // is mode 0 H-Blank interrupt enabled?
+        }
+    }
+
+    if (reqInt && mode != oldMode) {
+        RequestInterupt(1); // request LCDStat interrupt
+    }
+
+    BYTE Lyc = ReadMemory(0xFF45);
+
+    if (Lyc == Ly) {
+        LCDStatus = BitSet(LCDStatus, 2);
+
+        // is LYC=LY coincidence interrupt enabled?
+        if (TestBit(LCDStatus, 6)) {
+            RequestInterupt(1); // then request LCDStat interrupt
+        }
+    } else {
+        LCDStatus = BitReset(LCDStatus, 2);
+    }
+
+    WriteByte(0xFF41, LCDStatus);
 }
 
 //////////////////////////////////////////////////////////////////

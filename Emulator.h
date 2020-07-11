@@ -99,10 +99,10 @@ class Emulator {
 
   private:
     enum COLOUR {
-        WHITE,
-        LIGHT_GRAY,
-        DARK_GRAY,
-        BLACK
+        LIGHTEST_GREEN,
+        LIGHT_GREEN,
+        DARK_GREEN,
+        DARKEST_GREEN
     };
 
     BYTE				GetLCDMode			( ) const ;
@@ -119,7 +119,6 @@ class Emulator {
     void				DrawScanLine		( ) ;
     COLOUR				GetColour			( BYTE colourNumber, WORD address ) const ;
     void				DoTimers			( int cycles ) ;
-    void				DoInput				( ) ;
 
     void				RenderBackground	( BYTE lcdControl ) ;
     void				RenderSprites		( BYTE lcdControl ) ;
