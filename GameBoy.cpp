@@ -41,7 +41,7 @@ GameBoy* GameBoy::GetSingleton( ) {
 
 GameBoy::GameBoy(void) :
     m_Emulator(NULL) {
-    m_Emulator = new Emulator();
+    m_Emulator = new Emulator(false);
     m_Emulator->SetRenderFunc(DoRender);
 
     if (!CreateSDLWindow()) {

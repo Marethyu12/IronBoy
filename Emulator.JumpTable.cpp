@@ -786,7 +786,7 @@ void Emulator::ExecuteOpcode(BYTE opcode) {
         m_ProgramCounter = PopWordOffStack( ) ;
         m_EnableInterupts = true ;
         m_CyclesThisUpdate+=8 ;
-        if (false) {
+        if (m_DoLogging) {
             LogMessage::GetSingleton()->DoLogMessage("Returning from interupt", false);
         }
     }
@@ -900,30 +900,12 @@ void Emulator::ExecuteOpcode(BYTE opcode) {
     }
     break ;
 
-    case 0xF8: {
-        SIGNED_BYTE n = ReadMemory(m_ProgramCounter) ;
-        m_ProgramCounter++ ;
-        m_RegisterAF.lo = BitReset(m_RegisterAF.lo, FLAG_Z);
-        m_RegisterAF.lo = BitReset(m_RegisterAF.lo, FLAG_N);
-
-
-        WORD value = (m_StackPointer.reg + n) & 0xFFFF;
-
-        m_RegisterHL.reg = value ;
-        unsigned int v = m_StackPointer.reg + n ;
-
-        if( n > 0xFFFF )
-            m_RegisterAF.lo = BitSet(m_RegisterAF.lo,FLAG_C) ;
-        else
-            m_RegisterAF.lo = BitReset(m_RegisterAF.lo,FLAG_C) ;
-
-        if( (m_StackPointer.reg & 0xF) + (n & 0xF) > 0xF )
-            m_RegisterAF.lo = BitSet(m_RegisterAF.lo,FLAG_H) ;
-        else
-            m_RegisterAF.lo = BitReset(m_RegisterAF.lo,FLAG_H) ;
-
-    }
-    break ;
+    case 0xE8:
+        CPU_LOAD_SP_PLUS_SBYTE(m_StackPointer.reg);
+        break;
+    case 0xF8:
+        CPU_LOAD_SP_PLUS_SBYTE(m_RegisterHL.reg);
+        break;
 
     case 0x10: {
         m_ProgramCounter++ ;
@@ -949,15 +931,13 @@ void Emulator::ExecuteExtendedOpcode( ) {
     if ((m_ProgramCounter >= 0x4000 && m_ProgramCounter <= 0x7FFF) || (m_ProgramCounter >= 0xA000 && m_ProgramCounter <= 0xBFFF))
         opcode = ReadMemory(m_ProgramCounter) ;
 
-    if (false) {
+    if (m_DoLogging) {
         char buffer[200] ;
         sprintf(buffer, "EXTENDEDOP = %x PC = %x\n", opcode, m_ProgramCounter) ;
         LogMessage::GetSingleton()->DoLogMessage(buffer,false) ;
     }
 
     m_ProgramCounter++ ;
-
-    //LOGMESSAGE(Logging::MSG_INFO, STR::Format("Processing Extended Opcode %x, Program Counter: %x", opcode, m_ProgramCounter).ConstCharPtr()) ;
 
     switch(opcode) {
     // rotate left through carry

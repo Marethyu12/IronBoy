@@ -42,7 +42,7 @@ const int bootROM[] = {
 
 class Emulator {
   public:
-    Emulator			(void);
+    Emulator			( bool enableBootROM );
     ~Emulator			(void);
 
     bool				LoadRom				(const std::string& romName) ;
@@ -165,6 +165,7 @@ class Emulator {
     void				CPU_SET_BIT_MEMORY	( WORD address, int bit ) ;
 
     void				CPU_DAA				( ) ;
+    void                CPU_LOAD_SP_PLUS_SBYTE( WORD& reg ) ;
 
     void				CPU_RLC				( BYTE& reg ) ;
     void				CPU_RLC_MEMORY		( WORD address ) ;
@@ -186,6 +187,7 @@ class Emulator {
     unsigned long long	m_TotalOpcodes ;
 
     bool				m_DoLogging ;
+    bool                m_BootROMEnabled;
     bool                m_BootMode;
 
     RenderFunc			m_RenderFunc ;

@@ -558,30 +558,80 @@ void Emulator::CPU_SET_BIT_MEMORY(WORD address, int bit) {
 
 //////////////////////////////////////////////////////////////////////////////////
 
-// STOLEN
+// https://ehaskins.com/2018-01-30%20Z80%20DAA/
 void Emulator::CPU_DAA( ) {
     m_CyclesThisUpdate += 4 ;
 
-    if(TestBit(m_RegisterAF.lo, FLAG_N)) {
-        if((m_RegisterAF.hi &0x0F ) >0x09 || m_RegisterAF.lo &0x20 ) {
-            m_RegisterAF.hi -=0x06; //Half borrow: (0-1) = (0xF-0x6) = 9
-            if((m_RegisterAF.hi&0xF0)==0xF0) m_RegisterAF.lo|=0x10;
-            else m_RegisterAF.lo&=~0x10;
+    BYTE high = (BYTE) (m_RegisterAF.hi >> 4); // higher nibble
+    BYTE low = (BYTE) (m_RegisterAF.hi & 0xF); // lower nibble
+
+    /* if the previous operation was subtraction */
+    if (TestBit(m_RegisterAF.lo, FLAG_N)) {
+        /* Subtract 6 from each digit greater than 9, or if it carried */
+
+        if (TestBit(m_RegisterAF.lo, FLAG_H) || low > 9) {
+            low -= 0x6;
+            low &= 0xF; /* keep within [0...15] */
         }
 
-        if((m_RegisterAF.hi&0xF0)>0x90 || m_RegisterAF.lo&0x10) m_RegisterAF.hi-=0x60;
-    } else {
-        if((m_RegisterAF.hi&0x0F)>9 || m_RegisterAF.lo&0x20) {
-            m_RegisterAF.hi+=0x06; //Half carry: (9+1) = (0xA+0x6) = 10
-            if((m_RegisterAF.hi&0xF0)==0) m_RegisterAF.lo|=0x10;
-            else m_RegisterAF.lo&=~0x10;
+        if (TestBit(m_RegisterAF.lo, FLAG_C) || high > 9) {
+            high -= 0x6;
+            high &= 0xF;
+        }
+    } else { /* the previous operation was addition */
+        /* Add 6 to each digit greater than 9, or if it carried */
+
+        if (TestBit(m_RegisterAF.lo, FLAG_H) || low > 9) {
+            low += 0x6;
+            low &= 0xF; /* keep within [0...15] */
         }
 
-        if((m_RegisterAF.hi&0xF0)>0x90 || m_RegisterAF.lo&0x10) m_RegisterAF.hi+=0x60;
+        if (TestBit(m_RegisterAF.lo, FLAG_C) || high > 9) {
+            high += 0x6;
+            high &= 0xF;
+        }
     }
 
-    if(m_RegisterAF.hi==0) m_RegisterAF.lo|=0x80;
-    else m_RegisterAF.lo&=~0x80;
+    m_RegisterAF.hi = (BYTE) ((high << 4) | low);
+
+    if (m_RegisterAF.hi == 0) {
+        m_RegisterAF.lo = BitSet(m_RegisterAF.lo, FLAG_Z);
+    } else {
+        m_RegisterAF.lo = BitReset(m_RegisterAF.lo, FLAG_Z);
+    }
+
+    m_RegisterAF.lo = BitReset(m_RegisterAF.lo, FLAG_H);
+
+    /* 0x99 == 10011001 (1001 is 9 in binary) */
+    if (m_RegisterAF.hi > 0x99) {
+        m_RegisterAF.lo = BitSet(m_RegisterAF.lo, FLAG_C);
+    } else {
+        m_RegisterAF.lo = BitReset(m_RegisterAF.lo, FLAG_C);
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////////////
+
+void Emulator::CPU_LOAD_SP_PLUS_SBYTE(WORD& reg) {
+    SIGNED_BYTE n = ReadMemory(m_ProgramCounter);
+    m_ProgramCounter++;
+    m_RegisterAF.lo = BitReset(m_RegisterAF.lo, FLAG_Z);
+    m_RegisterAF.lo = BitReset(m_RegisterAF.lo, FLAG_N);
+
+    WORD value = (m_StackPointer.reg + n) & 0xFFFF;
+
+    reg = value;
+    unsigned int v = m_StackPointer.reg + n;
+
+    if(n > 0xFFFF)
+        m_RegisterAF.lo = BitSet(m_RegisterAF.lo,FLAG_C);
+    else
+        m_RegisterAF.lo = BitReset(m_RegisterAF.lo,FLAG_C);
+
+    if((m_StackPointer.reg & 0xF) + (n & 0xF) > 0xF)
+        m_RegisterAF.lo = BitSet(m_RegisterAF.lo,FLAG_H);
+    else
+        m_RegisterAF.lo = BitReset(m_RegisterAF.lo,FLAG_H);
 }
 
 //////////////////////////////////////////////////////////////////////////////////

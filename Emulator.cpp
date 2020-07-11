@@ -9,7 +9,7 @@
 
 //////////////////////////////////////////////////////////////////
 
-Emulator::Emulator(void) :
+Emulator::Emulator(bool enableBootROM) :
     m_GameLoaded(false)
     ,m_CyclesThisUpdate(0)
     ,m_UsingMBC1(false)
@@ -29,7 +29,8 @@ Emulator::Emulator(void) :
     ,m_DebugPausePending(false)
     ,m_TimeToPause(NULL)
     ,m_TotalOpcodes(0)
-    ,m_DoLogging(false) {
+    ,m_DoLogging(false)
+    ,m_BootROMEnabled(enableBootROM) {
     ResetScreen( );
 }
 
@@ -61,12 +62,12 @@ bool Emulator::LoadRom(const std::string& romName) {
     m_CurrentRomBank = 1;
     m_DoLogging = false;
 
-    /* if you want boot ROM on startup */
-    //m_BootMode = true;
-
-    /* no boot ROM on startup */
-    m_BootMode = false;
-    ResetCPU();
+    if (m_BootROMEnabled) {
+        m_BootMode = true;
+    } else {
+        m_BootMode = false;
+        ResetCPU();
+    }
 
     return true ;
 }
@@ -255,7 +256,7 @@ BYTE Emulator::ExecuteNextOpcode( ) {
         opcode = ReadMemory(m_ProgramCounter);
 
     if (!m_Halted) {
-        if (false) {
+        if (m_DoLogging) {
             char buffer[200] ;
             sprintf(buffer, "OP = %x PC = %x\n", opcode, m_ProgramCounter) ;
             LogMessage::GetSingleton()->DoLogMessage(buffer,false) ;
@@ -408,7 +409,7 @@ void Emulator::WriteByte(WORD address, BYTE data) {
             // Combine the written data with the register.
             m_CurrentRomBank |= data;
 
-            if (false) {
+            if (m_DoLogging) {
                 char buffer[256] ;
                 sprintf(buffer, "Chaning Rom Bank to %d", m_CurrentRomBank) ;
                 LogMessage::GetSingleton()->DoLogMessage(buffer, false) ;
@@ -441,7 +442,7 @@ void Emulator::WriteByte(WORD address, BYTE data) {
                 // Combine the written data with the register.
                 m_CurrentRomBank |= data;
 
-                if (false) {
+                if (m_DoLogging) {
                     char buffer[256] ;
                     sprintf(buffer, "Chaning Rom Bank to %d", m_CurrentRomBank) ;
                     LogMessage::GetSingleton()->DoLogMessage(buffer, false) ;
@@ -450,7 +451,7 @@ void Emulator::WriteByte(WORD address, BYTE data) {
             } else {
                 m_CurrentRamBank = data & 0x3 ;
 
-                if (false) {
+                if (m_DoLogging) {
                     char buffer[256] ;
                     sprintf(buffer, "=====Chaning Ram Bank to %d=====", m_CurrentRamBank) ;
                     LogMessage::GetSingleton()->DoLogMessage(buffer, false) ;
@@ -696,15 +697,11 @@ void Emulator::ServiceInterrupt( int num ) {
     PushWordOntoStack(m_ProgramCounter) ;
     m_Halted = false ;
 
-    if (false) {
+    if (m_DoLogging) {
         char buffer[200] ;
         sprintf(buffer, "servicing interupt %d", num) ;
         LogMessage::GetSingleton()->DoLogMessage(buffer, false) ;
     }
-
-//	unsigned long long limit =(8000000);
-//	if (m_TotalOpcodes > limit)
-//		LOGMESSAGE(Logging::MSG_INFO, STR::Format("Servicing interrupt %d", num).ConstCharPtr() ) ;
 
     switch(num) {
     case 0:
