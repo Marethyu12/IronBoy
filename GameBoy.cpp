@@ -15,14 +15,6 @@ static const int scale = 2;
 
 ///////////////////////////////////////////////////////////////////////////////////////
 
-static int total = 0 ;
-static int timer = 0 ;
-static int current = 0 ;
-static int counter = 0 ;
-static bool first = true ;
-
-///////////////////////////////////////////////////////////////////////////////////////
-
 static void DoRender( ) {
     GameBoy* gb = GameBoy::GetSingleton() ;
     gb->RenderGame(gb->GetRenderer(), gb->GetTexture());
