@@ -562,37 +562,27 @@ void Emulator::CPU_SET_BIT_MEMORY(WORD address, int bit) {
 void Emulator::CPU_DAA( ) {
     m_CyclesThisUpdate += 4 ;
 
-    BYTE high = (BYTE) (m_RegisterAF.hi >> 4); // higher nibble
-    BYTE low = (BYTE) (m_RegisterAF.hi & 0xF); // lower nibble
-
-    /* if the previous operation was subtraction */
-    if (TestBit(m_RegisterAF.lo, FLAG_N)) {
-        /* Subtract 6 from each digit greater than 9, or if it carried */
-
-        if (TestBit(m_RegisterAF.lo, FLAG_H) || low > 9) {
-            low -= 0x6;
-            low &= 0xF; /* keep within [0...15] */
+    if (!TestBit(m_RegisterAF.lo, FLAG_N)) {
+        // after an addition, adjust if (half-)carry occurred or if result is out of bounds
+        if (TestBit(m_RegisterAF.lo, FLAG_C) || m_RegisterAF.hi > 0x99) {
+            m_RegisterAF.hi += 0x60;
+            m_RegisterAF.lo = BitSet(m_RegisterAF.lo, FLAG_C);
+        }
+        
+        if (TestBit(m_RegisterAF.lo, FLAG_H) || (m_RegisterAF.hi & 0xF) > 0x9) {
+            m_RegisterAF.hi += 0x6;
+        }
+    } else {
+        // after a subtraction, only adjust if (half-)carry occurred
+        if (TestBit(m_RegisterAF.lo, FLAG_C)) {
+            m_RegisterAF.hi -= 0x60;
+            m_RegisterAF.lo = BitSet(m_RegisterAF.lo, FLAG_C);
         }
 
-        if (TestBit(m_RegisterAF.lo, FLAG_C) || high > 9) {
-            high -= 0x6;
-            high &= 0xF;
-        }
-    } else { /* the previous operation was addition */
-        /* Add 6 to each digit greater than 9, or if it carried */
-
-        if (TestBit(m_RegisterAF.lo, FLAG_H) || low > 9) {
-            low += 0x6;
-            low &= 0xF; /* keep within [0...15] */
-        }
-
-        if (TestBit(m_RegisterAF.lo, FLAG_C) || high > 9) {
-            high += 0x6;
-            high &= 0xF;
+        if (TestBit(m_RegisterAF.lo, FLAG_H)) {
+            m_RegisterAF.hi -= 0x6;
         }
     }
-
-    m_RegisterAF.hi = (BYTE) ((high << 4) | low);
 
     if (m_RegisterAF.hi == 0) {
         m_RegisterAF.lo = BitSet(m_RegisterAF.lo, FLAG_Z);
@@ -601,13 +591,6 @@ void Emulator::CPU_DAA( ) {
     }
 
     m_RegisterAF.lo = BitReset(m_RegisterAF.lo, FLAG_H);
-
-    /* 0x99 == 10011001 (1001 is 9 in binary) */
-    if (m_RegisterAF.hi > 0x99) {
-        m_RegisterAF.lo = BitSet(m_RegisterAF.lo, FLAG_C);
-    } else {
-        m_RegisterAF.lo = BitReset(m_RegisterAF.lo, FLAG_C);
-    }
 }
 
 //////////////////////////////////////////////////////////////////////////////////
