@@ -319,6 +319,7 @@ void Emulator::ExecuteOpcode(BYTE opcode) {
     // pop word from stack into reg
     case 0xF1:
         m_RegisterAF.reg = PopWordOffStack( ) ;
+        m_RegisterAF.lo &= 0xF0; // the lower nibble of the flag register should stay untouched after popping
         m_CyclesThisUpdate+=12 ;
         break;
     case 0xC1:
