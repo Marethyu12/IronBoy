@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -Wall -mwindows -Wl,-subsystem,windows
-LIBS = -lSDL2 -l:libcomdlg32.a
+LIBS = -lSDL2 -lcomdlg32
 SRCS = WinMain.cpp Config.cpp Emulator.cpp Emulator.i8080Cpu.cpp Emulator.JumpTable.cpp GameBoy.cpp GameSettings.cpp LogMessages.cpp
 OBJS = $(SRCS:.cpp=.o)
 RM = del
